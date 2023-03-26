@@ -6,9 +6,32 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout source code
+      uses: actions/checkout@v2
+
+    - name: Generate deployment package
+      run: zip -r deploy.zip . -x '*.git*'
+
+    - name: Deploy to EB
+      uses: einaregilsson/beanstalk-deploy@v21
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: JS-CICD-App
+        environment_name: Js-cicd-app-env
+        version_label: 0.1
+        region: us-east-1
+        deployment_package: deploy.zip
+        
+        
   sonarcloud:
     name: SonarCloud
     runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v3
         with:
@@ -18,11 +41,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          
+          
   zap_scan:
     name: Scan ZAP website
     runs-on: ubuntu-latest
+    
     steps:
       - name: ZAP Scan
-        uses: zaproxy/action-full-scan@v0.1.0
+        uses: zaproxy/action-full-scan@v0.4.0
         with:
-          target: 'https://www.zaproxy.org/'
+          target: 'https://awsfgcicdtest.us-east-1.elasticbeanstalk.com'
