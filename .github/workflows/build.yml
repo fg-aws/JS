@@ -1,20 +1,64 @@
-name: Build
+name: CI/CD Build Example
+
 on:
   push:
     branches:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+  
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node: [16]
+    
     steps:
+    - name: Checkout
+      uses: actions/checkout@master
 
-    - name: Checkout source code
-      uses: actions/checkout@v2
+    - name: Setup node_env
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node }}
+
+    - name: Cache node_modules
+      uses: actions/cache@v3
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+
+    - name: Installing NPM
+      run: npm install
+
+    - name: Linting check
+      run: npm run lint
+
+    - name: Building application
+      run: npm run build
 
     - name: Generate deployment package
-      run: zip -r deploy.zip . -x '*.git*'
+      run: zip -r deploy.zip * .[^.]* -x "**node_modules**"
+
+    - name: Get timestamp
+      uses: gerred/actions/current-time@master
+      id: current-time
+
+    - name: Run string replace
+      uses: frabert/replace-string-action@master
+      id: format-time
+      with:
+        pattern: '[:\.]+'
+        string: "${{ steps.current-time.outputs.time }}"
+        replace-with: '-'
+        flags: 'g'
+
 
     - name: Deploy to EB
       uses: einaregilsson/beanstalk-deploy@v21
@@ -23,10 +67,12 @@ jobs:
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         application_name: JS-CICD-App
         environment_name: Js-cicd-app-env
-        version_label: 0.1
+        version_label: "fg-cicd-demo-${{ steps.format-time.outputs.replaced }}"
         region: us-east-1
         deployment_package: deploy.zip
         
+    - name: Deployed!
+      run: echo App deployed to ELB
         
   sonarcloud:
     name: SonarCloud
